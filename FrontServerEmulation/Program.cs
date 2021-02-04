@@ -39,6 +39,7 @@ namespace FrontServerEmulation
                         throw;
                     }
 
+                    services.AddSingleton<ISettingConstants, SettingConstants>();
                     //services.AddHostedService<QueuedHostedService>();
                     //services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
                     services.AddSingleton<MonitorLoop>();

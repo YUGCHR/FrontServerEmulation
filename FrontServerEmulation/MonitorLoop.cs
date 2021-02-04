@@ -15,15 +15,18 @@ namespace FrontServerEmulation
     public class MonitorLoop
     {
         private readonly ILogger<MonitorLoop> _logger;
+        private readonly ISettingConstants _constant;
         private readonly CancellationToken _cancellationToken;
         private readonly IOnKeysEventsSubscribeService _subscribe;
 
         public MonitorLoop(
             ILogger<MonitorLoop> logger,
+            ISettingConstants constant,
             IHostApplicationLifetime applicationLifetime,
             IOnKeysEventsSubscribeService subscribe)
         {
             _logger = logger;
+            _constant = constant;
             _subscribe = subscribe;
             _cancellationToken = applicationLifetime.ApplicationStopping;
         }
@@ -38,11 +41,10 @@ namespace FrontServerEmulation
 
         public async Task Monitor()
         {
-            // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)
-
+            // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
             KeyEvent eventCmdSet = KeyEvent.HashSet;
             // все ключи положить в константы
-            string eventKeyFrom = "subscribeOnFrom"; // ключ для подписки на команду запуска эмулятора сервера
+            string eventKeyFrom = _constant.GetEventKeyFrom; // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
             string eventFieldFrom = "count";
             TimeSpan ttl = TimeSpan.FromDays(1); // срок хранения всех ключей
 
