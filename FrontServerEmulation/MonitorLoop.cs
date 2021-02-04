@@ -45,15 +45,15 @@ namespace FrontServerEmulation
             KeyEvent eventCmdSet = KeyEvent.HashSet;
             // все ключи положить в константы
             string eventKeyFrom = _constant.GetEventKeyFrom; // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
-            string eventFieldFrom = "count";
-            TimeSpan ttl = TimeSpan.FromDays(1); // срок хранения всех ключей
+            string eventFieldFrom = _constant.GetEventFieldFrom; // "count" - поле для подписки на команду запуска эмулятора сервера
 
-            // заменить ключ и поле на guid, чтобы никто не мог случайно вызвать?
-            string eventKeyRun = "task:run"; // ключ и поле для подписки на ключи задач, создаваемые сервером (или эмулятором)
-            string eventFieldRun = "ttt";
+            TimeSpan ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays); // срок хранения ключа eventKeyFrom
 
-            // сервер кладёт название поля ключа в заранее обусловленную ячейку ("task:run/count") и тут её можно прочитать
-            string eventGuidFieldRun = await _subscribe.FetchGuidFieldTaskRun(eventKeyRun, eventFieldRun, ttl);
+            string eventKeyRun = _constant.GetEventKeyRun; // "task:run" - ключ и поле для подписки на ключи задач, создаваемые сервером (или эмулятором)
+            string eventFieldRun = _constant.GetEventFieldRun;
+
+            // сервер кладёт название поля ключа в заранее обусловленную ячейку ("task:run/Guid") и тут её можно прочитать
+            string eventGuidFieldRun = await _subscribe.FetchGuidFieldTaskRun(eventKeyRun, eventFieldRun, ttl); // заменяем поле на guid
 
             _subscribe.SubscribeOnEventFrom(eventKeyFrom, eventFieldFrom, eventCmdSet, eventKeyRun, eventGuidFieldRun, ttl);
 

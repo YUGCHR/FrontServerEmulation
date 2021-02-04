@@ -8,12 +8,11 @@ namespace FrontServerEmulation.Services
         public int GetRecordActualityLevel { get; }
         public int GetTaskDelayTimeInSeconds { get; }
         public int GetPercentsKeysExistingTimeInMinutes { get; }
+        public int GetKeyFromTimeDays { get; }
         public string GetEventKeyFrom { get; }
-        public string GetKeyLanguageId { get; }
-        public string GetKeyAllNumbers { get; }
-        public string GetKeyBookIdAction { get; }
-        public string GetKeyTaskPercents { get; }
-        public string GetKeyIsTaskRunning { get; }
+        public string GetEventFieldFrom { get; }        
+        public string GetEventKeyRun { get; }
+        public string GetEventFieldRun { get; }        
     }
 
     public class SettingConstants : ISettingConstants
@@ -21,12 +20,12 @@ namespace FrontServerEmulation.Services
         private readonly int _getRecordActualityLevel;
         private readonly int _getTaskDelayTimeInSeconds;
         private readonly int _getPercentsKeysExistingTimeInMinutes;
+        private readonly int _getEventKeyFromTimeDays;
         private readonly string _getEventKeyFrom;
-        private readonly string _getKeyLanguageId;
-        private readonly string _getKeyAllNumbers;
-        private readonly string _getKeyBookIdAction;
-        private readonly string _getKeyTaskPercents;
-        private readonly string _getKeyIsTaskRunning;
+        private readonly string _getEventFieldFrom;
+        private readonly string _getEventKeyRun;
+        private readonly string _getEventFieldRun;
+        
 
         public SettingConstants(IConfiguration configuration)
         {
@@ -36,25 +35,24 @@ namespace FrontServerEmulation.Services
             _getRecordActualityLevel = Convert.ToInt32(recordActualityLevel);
             _getTaskDelayTimeInSeconds = Convert.ToInt32(Configuration.GetSection("SettingConstants").GetSection("Constants").GetSection("TaskDelayTimeInSeconds").Value);
             _getPercentsKeysExistingTimeInMinutes = Convert.ToInt32(Configuration.GetSection("SettingConstants").GetSection("Constants").GetSection("PercentsKeysExistingTimeInMinutes").Value);
-            _getEventKeyFrom = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyFrom").Value;
-            _getKeyLanguageId = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("keyLanguageId").Value;
-            _getKeyAllNumbers = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("keyAllNumbers").Value;
-            _getKeyBookIdAction = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("keyBookIdAction").Value;
-            _getKeyTaskPercents = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("keyTaskPercents").Value;
-            _getKeyIsTaskRunning = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("keyIsTaskRunning").Value;
 
+            _getEventKeyFromTimeDays = Convert.ToInt32(Configuration.GetSection("SettingConstants").GetSection("RedisKeysTimes").GetSection("eventKeyFromTimeDays").Value);
+
+            _getEventKeyFrom = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyFrom").Value;
+            _getEventFieldFrom = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventFieldFrom").Value;
+            _getEventKeyRun = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyRun").Value;
+            _getEventFieldRun = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventFieldRun").Value;
         }
         private IConfiguration Configuration { get; }
 
         public int GetRecordActualityLevel => _getRecordActualityLevel;
         public int GetTaskDelayTimeInSeconds => _getTaskDelayTimeInSeconds;
         public int GetPercentsKeysExistingTimeInMinutes => _getPercentsKeysExistingTimeInMinutes;
+        public int GetKeyFromTimeDays => _getEventKeyFromTimeDays;
         public string GetEventKeyFrom => _getEventKeyFrom;
-        public string GetKeyLanguageId => _getKeyLanguageId;
-        public string GetKeyAllNumbers => _getKeyAllNumbers;
-        public string GetKeyBookIdAction => _getKeyBookIdAction;
-        public string GetKeyTaskPercents => _getKeyTaskPercents;
-        public string GetKeyIsTaskRunning => _getKeyIsTaskRunning;
-      
+        public string GetEventFieldFrom => _getEventFieldFrom;
+        public string GetEventKeyRun => _getEventKeyRun;
+        public string GetEventFieldRun => _getEventFieldRun;
+
     }
 }
