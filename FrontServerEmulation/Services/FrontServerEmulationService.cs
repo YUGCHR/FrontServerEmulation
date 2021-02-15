@@ -7,13 +7,14 @@ using System.Threading.Tasks;
 using CachingFramework.Redis.Contracts;
 using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Logging;
+using FrontServerEmulation.Models;
 
 namespace FrontServerEmulation.Services
 {
     public interface IFrontServerEmulationService
     {
         public Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl);
-        public Task FrontServerEmulationMain(string eventKeyFrom, string eventFieldFrom, string eventKeyRun, string eventFieldRun, TimeSpan ttl); // все ключи положить в константы
+        public Task FrontServerEmulationMain(EventKeyNames eventKeysSet); // все ключи положить в константы
     }
 
     public class FrontServerEmulationService : IFrontServerEmulationService
@@ -36,10 +37,35 @@ namespace FrontServerEmulation.Services
             _logger.LogInformation("Guid Field {0} for key {1} was created and set.", eventGuidFieldRun, eventKeyRun);
         }
 
-        public async Task FrontServerEmulationMain(string eventKeyFrom, string eventFieldFrom, string eventKeyRun, string eventFieldRun, TimeSpan ttl)
+        public async Task FrontServerEmulationMain(EventKeyNames eventKeysSet)
         {
-            // эмулятор сервера создаёт задачу, даёт ей айди, кладёт в специальный ключ и потом другим ключом сообщает, что есть задача
-            // задачи класть по одной или сразу списком? наверное, задачи (главы) одной книги можно класть списком
+            string eventKeyFrom = eventKeysSet.EventKeyFrom;
+            string eventFieldFrom = eventKeysSet.EventFieldFrom;
+            KeyEvent eventCmd = eventKeysSet.EventCmd;
+            string eventKeyBackReadiness = eventKeysSet.EventKeyBackReadiness;
+            string eventFieldBack = eventKeysSet.EventFieldBack;
+            string eventKeyFrontGivesTask = eventKeysSet.EventKeyFrontGivesTask;
+            string eventFieldFront = eventKeysSet.EventFieldFront;
+            TimeSpan ttl = eventKeysSet.Ttl;
+
+            // после получения задачи фронт опрашивает (не подписка) ключ eventKeyBackReadiness и получает список полей - это готовые к работе бэк-сервера
+            // дальше фронт выбирает первое поле или случайнее (так надёжнее?) и удаляет его - забирает заявку
+            string capturedBackServerGuid = await CaptureBackServerGuid(eventKeyBackReadiness);
+
+
+
+            // затем фронт создаёт в ключе кафе (eventKeyRun) поле с захваченным guid бэка, а в значение кладёт имя ключа (тоже guid) пакета задач
+            // или кафе не создавать, а сразу идти на ключ (guid бэк-сервера) для получения задачи
+            // кафе позволяет стороннему процессу узнать количество серверов за работой - для чего ещё может понадобиться кафе?
+            // бэк подписан на ключ кафе (или на ключ свой guid, если без кафе) и получив сообщение о событии, проверяет своё поле (или сразу берёт задачу)
+            // начав работу, бэк кладёт в ключ сообщение о ходе выполнения пакета и/или отдельной задачи (типовой класс - номер цикла, всего цикла, время цикла, всего время и так далее)
+            // окончив задачу, бэк должен вернуть поле со своим guid на биржу
+            // но сначала проверить сколько там есть свободных серверов - если больше х + какой-то запас, тогда просто раствориться
+            // ключ об отчёте выполнения останется на заданное время и потом тоже исчезнет
+            // 
+
+
+
 
             string packageGuid = Guid.NewGuid().ToString(); // создаём имя ключа, содержащего пакет задач
 
@@ -52,6 +78,45 @@ namespace FrontServerEmulation.Services
             await _cache.SetHashedAsync(eventKeyRun, eventFieldRun, packageGuid, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
 
             _logger.LogInformation("Key {0}, field {1} with {2} KeyName was set.", eventKeyRun, eventFieldRun, packageGuid);
+        }
+
+        private async Task<string> CaptureBackServerGuid(string eventKeyBackReadiness)
+        {
+            // secede in method            
+            // проверить, что ключ вообще существует, это автоматически означает, что в нём есть хоть одно поле - есть свободный сервер
+            IDictionary<string, string> taskPackage;
+            string capturedBackServerGuid = "empty";
+            bool isExistEventKeyBackReadiness = await _cache.KeyExistsAsync(eventKeyBackReadiness);
+            if (isExistEventKeyBackReadiness)
+            {
+                // после получения задачи фронт опрашивает ключ eventKeyBackReadiness и получает список полей
+                taskPackage = await _cache.GetHashedAllAsync<string>(eventKeyBackReadiness);
+
+                // дальше фронт выбирает первое поле или случайнее (так надёжнее?) и удаляет его - забирает заявку
+
+                // если удаление получилось, значит, бэк-сервер получен и можно ставить ему задачу
+                // если удаление не прошло, фронт (в цикле) опять опрашивает ключ
+                // если полей в ключе нет, ключ исчезнет - надо что-то предусмотреть
+                // например, не брать задачу, если в списке только один сервер/поле - подождать X секунд и ещё раз опросить ключ
+                // после удачного захвата сервера надо дать команду на запуск ещё одного бэка - восстановить свободное количество
+
+                // ----------------- вы находитесь здесь
+
+                foreach (var t in taskPackage)
+                {
+                    var (backServerGuid, unusedValue) = t; // пока пробуем первое поле
+                    capturedBackServerGuid = backServerGuid;
+                    // пробуем удалить поле ключа - захватить свободный сервер
+                    bool isDeleteSuccess = await _cache.RemoveHashedAsync(eventKeyBackReadiness, backServerGuid);
+                    _logger.LogInformation("Background server No: {0} captured successfully = {1}.", backServerGuid, isDeleteSuccess);
+                    if (isDeleteSuccess)
+                    {
+                        return capturedBackServerGuid;
+                    }
+                }
+            }
+
+            return default;
         }
 
         private async Task<int> FrontServerFetchConditions(string eventKeyFrom, string eventFieldFrom)

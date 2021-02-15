@@ -10,9 +10,11 @@ namespace FrontServerEmulation.Services
         public int GetPercentsKeysExistingTimeInMinutes { get; }
         public int GetKeyFromTimeDays { get; }
         public string GetEventKeyFrom { get; }
-        public string GetEventFieldFrom { get; }        
-        public string GetEventKeyRun { get; }
-        public string GetEventFieldRun { get; }        
+        public string GetEventFieldFrom { get; }
+        public string GetEventKeyBackReadiness { get; }
+        public string GetEventKeyFrontGivesTask { get; }
+        public string GetEventFieldBack { get; }
+        public string GetEventFieldFront { get; }
     }
 
     public class SettingConstants : ISettingConstants
@@ -23,9 +25,10 @@ namespace FrontServerEmulation.Services
         private readonly int _getEventKeyFromTimeDays;
         private readonly string _getEventKeyFrom;
         private readonly string _getEventFieldFrom;
-        private readonly string _getEventKeyRun;
-        private readonly string _getEventFieldRun;
-        
+        private readonly string _getEventKeyBackReadiness;
+        private readonly string _getEventKeyFrontGivesTask; 
+        private readonly string _getEventFieldBack;
+        private readonly string _getEventFieldFront;
 
         public SettingConstants(IConfiguration configuration)
         {
@@ -40,8 +43,10 @@ namespace FrontServerEmulation.Services
 
             _getEventKeyFrom = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyFrom").Value;
             _getEventFieldFrom = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventFieldFrom").Value;
-            _getEventKeyRun = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyRun").Value;
-            _getEventFieldRun = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventFieldRun").Value;
+            _getEventKeyBackReadiness = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyBackReadiness").Value;
+            _getEventKeyFrontGivesTask = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventKeyFrontGivesTask").Value;
+            _getEventFieldBack = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventFieldBack").Value;
+            _getEventFieldFront = Configuration.GetSection("SettingConstants").GetSection("RedisKeys").GetSection("eventFieldFront").Value;
         }
         private IConfiguration Configuration { get; }
 
@@ -51,8 +56,10 @@ namespace FrontServerEmulation.Services
         public int GetKeyFromTimeDays => _getEventKeyFromTimeDays;
         public string GetEventKeyFrom => _getEventKeyFrom;
         public string GetEventFieldFrom => _getEventFieldFrom;
-        public string GetEventKeyRun => _getEventKeyRun;
-        public string GetEventFieldRun => _getEventFieldRun;
+        public string GetEventKeyBackReadiness => _getEventKeyBackReadiness;
+        public string GetEventKeyFrontGivesTask => _getEventKeyFrontGivesTask;
+        public string GetEventFieldBack => _getEventFieldBack;
+        public string GetEventFieldFront => _getEventFieldFront;
 
     }
 }

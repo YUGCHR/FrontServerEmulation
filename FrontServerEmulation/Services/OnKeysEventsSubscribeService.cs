@@ -7,13 +7,14 @@ using System.Threading.Tasks;
 using CachingFramework.Redis.Contracts;
 using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Logging;
+using FrontServerEmulation.Models;
 
 namespace FrontServerEmulation.Services
 {
     public interface IOnKeysEventsSubscribeService
     {
         public Task<string> FetchGuidFieldTaskRun(string eventKeyRun, string eventFieldRun, TimeSpan ttl);
-        public void SubscribeOnEventFrom(string eventKey, string eventFieldFrom, KeyEvent eventCmd, string eventKeyRun, string eventFieldRun, TimeSpan ttl);        
+        public void SubscribeOnEventFrom(EventKeyNames eventKeysSet);
     }
 
     public class OnKeysEventsSubscribeService : IOnKeysEventsSubscribeService
@@ -46,14 +47,17 @@ namespace FrontServerEmulation.Services
             return eventGuidFieldRun;
         }
 
-        public void SubscribeOnEventFrom(string eventKey, string eventFieldFrom, KeyEvent eventCmd, string eventKeyRun, string eventGuidFieldRun, TimeSpan ttl)
+        public void SubscribeOnEventFrom(EventKeyNames eventKeysSet)            
         {
+            string eventKey = eventKeysSet.EventKeyFrom;
+            KeyEvent eventCmd = eventKeysSet.EventCmd;
+
             _keyEvents.Subscribe(eventKey, async (string key, KeyEvent cmd) =>
             {
                 if (cmd == eventCmd)
                 {
                     _logger.LogInformation("Key {Key} with command {Cmd} was received.", eventKey, cmd);
-                    await _front.FrontServerEmulationMain(eventKey, eventFieldFrom, eventKeyRun, eventGuidFieldRun, ttl);
+                    await _front.FrontServerEmulationMain(eventKeysSet);
                 }
             });
 

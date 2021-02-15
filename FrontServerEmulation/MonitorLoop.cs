@@ -9,6 +9,7 @@ using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using FrontServerEmulation.Services;
+using FrontServerEmulation.Models;
 
 namespace FrontServerEmulation
 {
@@ -42,20 +43,42 @@ namespace FrontServerEmulation
         public async Task Monitor()
         {
             // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
-            KeyEvent eventCmdSet = KeyEvent.HashSet;
-            // все ключи положить в константы
-            string eventKeyFrom = _constant.GetEventKeyFrom; // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
-            string eventFieldFrom = _constant.GetEventFieldFrom; // "count" - поле для подписки на команду запуска эмулятора сервера
+            
 
-            TimeSpan ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays); // срок хранения ключа eventKeyFrom
+            // на старте фронт сразу запускает два (взять из constant) бэка - чтобы были
+            int serverCount = 2;
+            // пока запустить руками, потом в контейнерах
+            _logger.LogInformation("Please, start {0} instances of BackgroundTasksQueue server", serverCount);
 
-            string eventKeyRun = _constant.GetEventKeyRun; // "task:run" - ключ и поле для подписки на ключи задач, создаваемые сервером (или эмулятором)
-            string eventFieldRun = _constant.GetEventFieldRun;
+            // имена ключей eventKeyStart (биржа труда) и eventKeyRun (кафе выдачи задач) фронт передаёт бэку
+            // биржа труда - key event back processes servers readiness list - eventKeyBackReadiness
+            // кафе выдачи задач - key event front server gives task package - eventKeyFrontGivesTask
+            // пока имена взять из констант
+            
 
-            // сервер кладёт название поля ключа в заранее обусловленную ячейку ("task:run/Guid") и тут её можно прочитать
-            string eventGuidFieldRun = await _subscribe.FetchGuidFieldTaskRun(eventKeyRun, eventFieldRun, ttl); // заменяем поле на guid
+            EventKeyNames eventKeysSet = new EventKeyNames
+            {
+                EventKeyFrom = _constant.GetEventKeyFrom, // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
+                EventFieldFrom = _constant.GetEventFieldFrom, // "count" - поле для подписки на команду запуска эмулятора сервера
+                EventCmd = KeyEvent.HashSet,
+                EventKeyBackReadiness = _constant.GetEventKeyBackReadiness, // биржа труда
+                EventFieldBack = _constant.GetEventFieldBack,
+                EventKeyFrontGivesTask = _constant.GetEventKeyFrontGivesTask, // кафе выдачи задач
+                EventFieldFront = _constant.GetEventFieldFront,
+                Ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays) // срок хранения ключа eventKeyFrom
+            };
 
-            _subscribe.SubscribeOnEventFrom(eventKeyFrom, eventFieldFrom, eventCmdSet, eventKeyRun, eventGuidFieldRun, ttl);
+            // бэк после старта кладёт в ключ eventKeyStart поле со своим сгенерированным guid - это заявление на биржу, что готов трудиться
+            
+
+            
+            
+            
+
+
+
+
+            _subscribe.SubscribeOnEventFrom(eventKeysSet);
 
             while (IsCancellationNotYet())
             {
