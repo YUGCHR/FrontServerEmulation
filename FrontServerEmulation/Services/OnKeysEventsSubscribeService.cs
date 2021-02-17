@@ -49,6 +49,7 @@ namespace FrontServerEmulation.Services
 
         public void SubscribeOnEventFrom(EventKeyNames eventKeysSet)            
         {
+            // ждёт команды с консоли с количеством генерируемых пакетов            
             string eventKey = eventKeysSet.EventKeyFrom;
             KeyEvent eventCmd = eventKeysSet.EventCmd;
 
@@ -56,6 +57,7 @@ namespace FrontServerEmulation.Services
             {
                 if (cmd == eventCmd)
                 {
+                    // по получению начинает цикл создания пакетов с задачами
                     _logger.LogInformation("Key {Key} with command {Cmd} was received.", eventKey, cmd);
                     await _front.FrontServerEmulationMain(eventKeysSet);
                 }
