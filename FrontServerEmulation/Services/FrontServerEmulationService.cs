@@ -50,7 +50,7 @@ namespace FrontServerEmulation.Services
 
             // после получения задачи фронт опрашивает (не подписка) ключ eventKeyBackReadiness и получает список полей - это готовые к работе бэк-сервера
             // дальше фронт выбирает первое поле или случайнее (так надёжнее?) и удаляет его - забирает заявку
-            string capturedBackServerGuid = await CaptureBackServerGuid(eventKeyBackReadiness);
+            string capturedBackServerGuid = await CaptureBackServerGuid(eventKeysSet.EventKeyBackReadiness);
 
 
             // затем фронт создаёт в ключе кафе (eventKeyFrontGivesTask) поле с захваченным guid бэка, а в значение кладёт имя ключа (тоже guid) пакета задач
@@ -64,7 +64,7 @@ namespace FrontServerEmulation.Services
             int tasksCount = await FrontServerFetchConditions(eventKeyFrom, eventFieldFrom);
             // создаём пакет задач (в реальности, опять же, пакет задач положил контроллер)
             Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount);
-            // в методе записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в сам ключ - сами задачи
+            // в методе FrontServerSetTasks записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в сам ключ - сами задачи
             // можно положить новые переменные тоже в eventKeysSet
             int inPackageTaskCount = await FrontServerSetTasks(taskPackage, eventKeysSet, taskPackageGuid, capturedBackServerGuid);
             // можно возвращать количество созданных задач и проверять, что не нуль - но это чтобы хоть что-то проверять (или проверять наличие созданных ключей)
@@ -79,6 +79,10 @@ namespace FrontServerEmulation.Services
             // окончив задачу, бэк должен вернуть поле со своим guid на биржу
             // но сначала проверить сколько там есть свободных серверов - если больше х + какой-то запас, тогда просто раствориться
             // ключ об отчёте выполнения останется на заданное время и потом тоже исчезнет
+            // сервер может подписываться на свои процессы и следить за ходом их выполнения - сразу увидеть, когда процесс выполнит все задачи
+            // и контроллер может подписаться на сервер, от которого ждёт инфы о ходе выполнения
+            // сделать метод, проверяющий показатели всех задач сервера и возвращающий интегральный показатель общего прогресса
+            // одновременное количество потоков серверу брать из своих настроек
 
 
             //await _cache.SetHashedAsync(eventKeyRun, eventFieldRun, packageGuid, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
@@ -90,13 +94,12 @@ namespace FrontServerEmulation.Services
         {
             // secede in method            
             // проверить, что ключ вообще существует, это автоматически означает, что в нём есть хоть одно поле - есть свободный сервер
-            IDictionary<string, string> taskPackage;
-            string capturedBackServerGuid = "empty";
+            
             bool isExistEventKeyBackReadiness = await _cache.KeyExistsAsync(eventKeyBackReadiness);
             if (isExistEventKeyBackReadiness)
             {
                 // после получения задачи фронт опрашивает ключ eventKeyBackReadiness и получает список полей
-                taskPackage = await _cache.GetHashedAllAsync<string>(eventKeyBackReadiness);
+                IDictionary<string, string> taskPackage = await _cache.GetHashedAllAsync<string>(eventKeyBackReadiness);
 
                 // дальше фронт выбирает первое поле или случайнее (так надёжнее?) и удаляет его - забирает заявку
 
@@ -105,13 +108,12 @@ namespace FrontServerEmulation.Services
                 // если полей в ключе нет, ключ исчезнет - надо что-то предусмотреть
                 // например, не брать задачу, если в списке только один сервер/поле - подождать X секунд и ещё раз опросить ключ
                 // после удачного захвата сервера надо дать команду на запуск ещё одного бэка - восстановить свободное количество
-
-                // ----------------- вы находитесь здесь
+                
 
                 foreach (var t in taskPackage)
                 {
                     var (backServerGuid, unusedValue) = t; // пока пробуем первое поле
-                    capturedBackServerGuid = backServerGuid;
+                    string capturedBackServerGuid = backServerGuid;
                     // пробуем удалить поле ключа - захватить свободный сервер
                     bool isDeleteSuccess = await _cache.RemoveHashedAsync(eventKeyBackReadiness, backServerGuid);
                     _logger.LogInformation("Background server No: {0} captured successfully = {1}.", backServerGuid, isDeleteSuccess);
@@ -119,9 +121,11 @@ namespace FrontServerEmulation.Services
                     {
                         return capturedBackServerGuid;
                     }
+                    // если удаление не удалось, берём следующее поле (номер сервера)
                 }
             }
-
+            // если захват сервера не удался совсем, то надо что-то сделать, пока сообщаем
+            _logger.LogInformation("Background server capture was failed, total attempts = {1}.", backServerGuid, isDeleteSuccess);
             return default;
         }
 
