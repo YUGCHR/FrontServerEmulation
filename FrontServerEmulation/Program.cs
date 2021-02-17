@@ -28,6 +28,7 @@ namespace FrontServerEmulation
                 {
                     try
                     {
+                        //ConnectionMultiplexer muxer = ConnectionMultiplexer.Connect("redis");
                         ConnectionMultiplexer muxer = ConnectionMultiplexer.Connect("localhost");
                         services.AddSingleton<ICacheProviderAsync>(new RedisContext(muxer).Cache);                        
                         services.AddSingleton<IKeyEventsProvider>(new RedisContext(muxer).KeyEvents);

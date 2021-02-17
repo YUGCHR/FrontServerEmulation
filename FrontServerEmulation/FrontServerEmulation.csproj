@@ -4,7 +4,13 @@
     <TargetFramework>net5.0</TargetFramework>
     <UserSecretsId>dotnet-FrontServerEmulation-D4F71803-CB7C-4B02-ADE9-A2B935AB72A9</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileRunArguments>--network my-net</DockerfileRunArguments>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
 
   <ItemGroup>
     <PackageReference Include="CachingFramework.Redis" Version="12.0.3" />

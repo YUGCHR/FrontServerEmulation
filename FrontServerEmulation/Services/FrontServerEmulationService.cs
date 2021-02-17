@@ -53,31 +53,37 @@ namespace FrontServerEmulation.Services
             string capturedBackServerGuid = await CaptureBackServerGuid(eventKeyBackReadiness);
 
 
-
-            // затем фронт создаёт в ключе кафе (eventKeyRun) поле с захваченным guid бэка, а в значение кладёт имя ключа (тоже guid) пакета задач
+            // затем фронт создаёт в ключе кафе (eventKeyFrontGivesTask) поле с захваченным guid бэка, а в значение кладёт имя ключа (тоже guid) пакета задач
             // или кафе не создавать, а сразу идти на ключ (guid бэк-сервера) для получения задачи
             // кафе позволяет стороннему процессу узнать количество серверов за работой - для чего ещё может понадобиться кафе?
+
+
+            // создаём имя ключа, содержащего пакет задач 
+            string taskPackageGuid = Guid.NewGuid().ToString();
+            // получаем условия задач по стартовому ключу 
+            int tasksCount = await FrontServerFetchConditions(eventKeyFrom, eventFieldFrom);
+            // создаём пакет задач (в реальности, опять же, пакет задач положил контроллер)
+            Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount);
+            // в методе записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в сам ключ - сами задачи
+            // можно положить новые переменные тоже в eventKeysSet
+            int inPackageTaskCount = await FrontServerSetTasks(taskPackage, eventKeysSet, taskPackageGuid, capturedBackServerGuid);
+            // можно возвращать количество созданных задач и проверять, что не нуль - но это чтобы хоть что-то проверять (или проверять наличие созданных ключей)
+            // на создание ключа с пакетом задач уйдёт заметное время, поэтому кафе оправдано - можно будет положить этот ключ в кафе на имя сервера после его создания
+            if (inPackageTaskCount > 0)
+            {
+                //then all rirght
+            }
+
             // бэк подписан на ключ кафе (или на ключ свой guid, если без кафе) и получив сообщение о событии, проверяет своё поле (или сразу берёт задачу)
             // начав работу, бэк кладёт в ключ сообщение о ходе выполнения пакета и/или отдельной задачи (типовой класс - номер цикла, всего цикла, время цикла, всего время и так далее)
             // окончив задачу, бэк должен вернуть поле со своим guid на биржу
             // но сначала проверить сколько там есть свободных серверов - если больше х + какой-то запас, тогда просто раствориться
             // ключ об отчёте выполнения останется на заданное время и потом тоже исчезнет
-            // 
 
 
+            //await _cache.SetHashedAsync(eventKeyRun, eventFieldRun, packageGuid, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
 
-
-            string packageGuid = Guid.NewGuid().ToString(); // создаём имя ключа, содержащего пакет задач
-
-            int tasksCount = await FrontServerFetchConditions(eventKeyFrom, eventFieldFrom); // получаем условия задач по стартовому ключу
-
-            Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount); // создаём пакет задач
-
-            await FrontServerSetTasks(taskPackage, packageGuid, ttl); // записываем пакет задач в ключ packageGuid
-
-            await _cache.SetHashedAsync(eventKeyRun, eventFieldRun, packageGuid, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
-
-            _logger.LogInformation("Key {0}, field {1} with {2} KeyName was set.", eventKeyRun, eventFieldRun, packageGuid);
+            //_logger.LogInformation("Key {0}, field {1} with {2} KeyName was set.", eventKeyRun, eventFieldRun, packageGuid);
         }
 
         private async Task<string> CaptureBackServerGuid(string eventKeyBackReadiness)
@@ -131,14 +137,23 @@ namespace FrontServerEmulation.Services
             return tasksCount;
         }
 
-        private async Task FrontServerSetTasks(Dictionary<string, int> taskPackage, string packageGuid, TimeSpan ttl)
+        private async Task<int> FrontServerSetTasks(Dictionary<string, int> taskPackage, EventKeyNames eventKeysSet, string taskPackageGuid, string capturedBackServerGuid)
         {
+            int inPackageTaskCount = 0;
             foreach (KeyValuePair<string, int> t in taskPackage)
             {
                 (string guid, int cycleCount) = t;
-                await _cache.SetHashedAsync(packageGuid, guid, cycleCount, ttl); // записываем пакет ключей с данными для каждой задачи или можно записать один ключ с пакетом (лист) задач
-                _logger.LogInformation("Key {0}, field {1} with {2} cycles was set.", packageGuid, guid, cycleCount);
+                // записываем пакет задач в ключ пакета задач
+                await _cache.SetHashedAsync(taskPackageGuid, guid, cycleCount, eventKeysSet.Ttl);
+                inPackageTaskCount++;
+                _logger.LogInformation("Key {0}, field {1} with {2} cycles was set.", taskPackageGuid, guid, cycleCount);
             }
+
+            // только после того, как создан ключ с пакетом задач, можно положить этот ключ в поле имени сервера
+            // записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в поле - guid захваченного сервера
+            await _cache.SetHashedAsync(eventKeysSet.EventKeyFrontGivesTask, capturedBackServerGuid, taskPackageGuid, eventKeysSet.Ttl);
+            // сервер подписан на ключ кафе и пойдёт забирать задачи, на этом тут всё
+            return inPackageTaskCount;
         }
 
         private Dictionary<string, int> FrontServerCreateTasks(int tasksCount)
