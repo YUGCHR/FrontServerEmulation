@@ -42,19 +42,32 @@ namespace FrontServerEmulation
 
         public async Task Monitor()
         {
-            // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
-            
-
             // на старте фронт сразу запускает два (взять из constant) бэка - чтобы были
             int serverCount = 2;
             // пока запустить руками, потом в контейнерах
             _logger.LogInformation("Please, start {0} instances of BackgroundTasksQueue server", serverCount);
 
+            // тут можно проверить наличие минимум двух бэк-серверов
+            // а можно перенести в цикл ожидания нажатия клавиши
+
             // имена ключей eventKeyStart (биржа труда) и eventKeyRun (кафе выдачи задач) фронт передаёт бэку
             // биржа труда - key event back processes servers readiness list - eventKeyBackReadiness
             // кафе выдачи задач - key event front server gives task package - eventKeyFrontGivesTask
             // пока имена взять из констант
-            
+
+            // добавить дополнительный ключ с количеством пакетов задач
+            // в стартовом ключе в значении указывать задержку -
+            // положительная - в секундах,
+            // 0 - без задержки,
+            // отрицательная - случайная задержка, но не более значения в сек
+
+            // generate random integers from 5 to 10
+            Random rand = new Random();
+            rand.Next(5, 11);
+
+
+            // сделать два сообщения в консоли - подсказки, как запустить эмулятор
+            // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
 
             EventKeyNames eventKeysSet = new EventKeyNames
             {
@@ -68,12 +81,9 @@ namespace FrontServerEmulation
                 Ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays) // срок хранения ключа eventKeyFrom
             };
 
-            // бэк после старта кладёт в ключ eventKeyStart поле со своим сгенерированным guid - это заявление на биржу, что готов трудиться
 
 
-            // ----------------- вы находитесь здесь
-
-            // новая версия, теперь это толька эмулятор контроллера фронт-сервера
+            // новая версия, теперь это только эмулятор контроллера фронт-сервера
 
             // множественные контроллеры по каждому запросу (пользователей) создают очередь - каждый создаёт ключ, на который у back-servers подписка, в нём поле со своим номером, а в значении или имя ключа с заданием или само задание            
             // дальше бэк-сервера сами разбирают задания
