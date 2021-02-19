@@ -69,18 +69,7 @@ namespace FrontServerEmulation
             // сделать два сообщения в консоли - подсказки, как запустить эмулятор
             // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
 
-            EventKeyNames eventKeysSet = new EventKeyNames
-            {
-                EventKeyFrom = _constant.GetEventKeyFrom, // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
-                EventFieldFrom = _constant.GetEventFieldFrom, // "count" - поле для подписки на команду запуска эмулятора сервера
-                EventCmd = KeyEvent.HashSet,
-                EventKeyBackReadiness = _constant.GetEventKeyBackReadiness, // биржа труда
-                EventFieldBack = _constant.GetEventFieldBack,
-                EventKeyFrontGivesTask = _constant.GetEventKeyFrontGivesTask, // кафе выдачи задач
-                EventFieldFront = _constant.GetEventFieldFront,
-                Ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays) // срок хранения ключа eventKeyFrom
-            };
-
+            EventKeyNames eventKeysSet = InitialiseEventKeyNames();
 
 
             // новая версия, теперь это только эмулятор контроллера фронт-сервера
@@ -126,6 +115,26 @@ namespace FrontServerEmulation
         private bool IsCancellationNotYet()
         {
             return !_cancellationToken.IsCancellationRequested; // add special key from Redis?
+        }
+
+        private EventKeyNames InitialiseEventKeyNames()
+        {
+            return new EventKeyNames
+            {
+                EventKeyFrom = _constant.GetEventKeyFrom, // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
+                EventFieldFrom = _constant.GetEventFieldFrom, // "count" - поле для подписки на команду запуска эмулятора сервера
+                EventCmd = KeyEvent.HashSet,
+                EventKeyBackReadiness = _constant.GetEventKeyBackReadiness, // ключ регистрации серверов
+                EventFieldBack = _constant.GetEventFieldBack,
+                EventKeyFrontGivesTask = _constant.GetEventKeyFrontGivesTask, // кафе выдачи задач
+                PrefixRequest = _constant.GetPrefixRequest, // request:guid
+                PrefixPackage = _constant.GetPrefixPackage, // package:guid
+                PrefixTask = _constant.GetPrefixTask, // task:guid
+                PrefixBackServer = _constant.GetPrefixBackServer, // backserver:guid
+                EventFieldFront = _constant.GetEventFieldFront,
+                EventKeyBacksTasksProceed = _constant.GetEventKeyBacksTasksProceed, //  ключ выполняемых/выполненных задач                
+                Ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays) // срок хранения ключа eventKeyFrom
+            };
         }
     }
 }
