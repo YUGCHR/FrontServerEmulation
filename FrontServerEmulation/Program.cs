@@ -51,3 +51,9 @@ namespace FrontServerEmulation
                 });
     }
 }
+
+// appsettings sharing between many solutions
+//var settingPath = Path.GetFullPath(Path.Combine(@"../../appsettings.json")); // get absolute path
+//var builder = new ConfigurationBuilder()
+//        .SetBasePath(env.ContentRootPath)
+//        .AddJsonFile(settingPath, optional: false, reloadOnChange: true);
