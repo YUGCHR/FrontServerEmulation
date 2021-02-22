@@ -14,7 +14,7 @@ namespace FrontServerEmulation.Services
     public interface IFrontServerEmulationService
     {
         public Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl);
-        public Task FrontServerEmulationMain(EventKeyNames eventKeysSet); // все ключи положить в константы
+        public Task<int> FrontServerEmulationMain(EventKeyNames eventKeysSet); // все ключи положить в константы
     }
 
     public class FrontServerEmulationService : IFrontServerEmulationService
@@ -28,7 +28,7 @@ namespace FrontServerEmulation.Services
             _cache = cache;
         }
 
-        public async Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl)
+        public async Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl) // not used
         {
             string eventGuidFieldRun = Guid.NewGuid().ToString(); // 
 
@@ -37,7 +37,7 @@ namespace FrontServerEmulation.Services
             _logger.LogInformation("Guid Field {0} for key {1} was created and set.", eventGuidFieldRun, eventKeyRun);
         }
 
-        public async Task FrontServerEmulationMain(EventKeyNames eventKeysSet)
+        public async Task<int> FrontServerEmulationMain(EventKeyNames eventKeysSet)
         {
             // получаем условия задач по стартовому ключу 
             int tasksPackegesCount = await FrontServerFetchConditions(eventKeysSet.EventKeyFrom, eventKeysSet.EventFieldFrom);
@@ -55,16 +55,19 @@ namespace FrontServerEmulation.Services
                     tasksCount += 3;
                 }
                 // создаём пакет задач (в реальности, опять же, пакет задач положил отдельный контроллер)
-                Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount);
+                Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount, eventKeysSet);
 
                 // при создании пакета сначала создаётся пакет задач в ключе, а потом этот номер создаётся в виде поля в подписном ключе
 
                 // создаем ключ taskPackageGuid и кладем в него пакет 
                 // записываем ключ taskPackageGuid пакета задач в поле ключа eventKeyFrontGivesTask и в значение ключа - тоже taskPackageGuid
-                int inPackageTaskCount = await FrontServerSetTasks(taskPackage, eventKeysSet, taskPackageGuid);
+                // дополняем taskPackageGuid префиксом PrefixPackage
+                string taskPackagePrefixGuid = $"{eventKeysSet.PrefixPackage}:{taskPackageGuid}";
+                int inPackageTaskCount = await FrontServerSetTasks(taskPackage, eventKeysSet, taskPackagePrefixGuid);
                 // можно возвращать количество созданных задач и проверять, что не нуль - но это чтобы хоть что-то проверять (или проверять наличие созданных ключей)
                 // на создание ключа с пакетом задач уйдёт заметное время, поэтому промежуточный ключ оправдан (наверное)
             }
+            return tasksPackegesCount;
         }
 
         private async Task<int> FrontServerFetchConditions(string eventKeyFrom, string eventFieldFrom)
@@ -80,7 +83,7 @@ namespace FrontServerEmulation.Services
             return tasksCount;
         }
 
-        private Dictionary<string, int> FrontServerCreateTasks(int tasksCount)
+        private Dictionary<string, int> FrontServerCreateTasks(int tasksCount, EventKeyNames eventKeysSet)
         {
             Dictionary<string, int> taskPackage = new Dictionary<string, int>();
 
@@ -94,8 +97,10 @@ namespace FrontServerEmulation.Services
                     cycleCount += 3;
                 }
 
-                taskPackage.Add(guid, cycleCount);
-                _logger.LogInformation("Task {I} from {TasksCount} with ID {Guid} and {CycleCount} cycles was added to Dictionary.", i, tasksCount, guid, cycleCount);
+                // дополняем taskPackageGuid префиксом PrefixPackage
+                string taskPackagePrefixGuid = $"{eventKeysSet.PrefixTask}:{guid}";
+                taskPackage.Add(taskPackagePrefixGuid, cycleCount);
+                _logger.LogInformation("Task {I} from {TasksCount} with ID {Guid} and {CycleCount} cycles was added to Dictionary.", i, tasksCount, taskPackagePrefixGuid, cycleCount);
             }
             return taskPackage;
         }

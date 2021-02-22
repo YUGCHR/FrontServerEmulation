@@ -38,7 +38,7 @@ namespace FrontServerEmulation.Services
             _front = front;
         }
 
-        public async Task<string> FetchGuidFieldTaskRun(string eventKeyRun, string eventFieldRun, TimeSpan ttl)
+        public async Task<string> FetchGuidFieldTaskRun(string eventKeyRun, string eventFieldRun, TimeSpan ttl) // not used
         {
             await _front.FrontServerEmulationCreateGuidField(eventKeyRun, eventFieldRun, ttl); // создаём эмулятором сервера guid поле для ключа "task:run" (и сразу же его читаем)
 
@@ -59,7 +59,9 @@ namespace FrontServerEmulation.Services
                 {
                     // по получению начинает цикл создания пакетов с задачами
                     _logger.LogInformation("Key {Key} with command {Cmd} was received.", eventKey, cmd);
-                    await _front.FrontServerEmulationMain(eventKeysSet);
+                    int tasksPackegesCount = await _front.FrontServerEmulationMain(eventKeysSet);
+                    _logger.LogInformation("Tasks Packeges created in count = {0}.", tasksPackegesCount);
+
                 }
             });
 

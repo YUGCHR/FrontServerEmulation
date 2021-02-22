@@ -17,16 +17,19 @@ namespace FrontServerEmulation
     {
         private readonly ILogger<MonitorLoop> _logger;
         private readonly ISettingConstants _constant;
+        private readonly ICacheProviderAsync _cache;
         private readonly CancellationToken _cancellationToken;
         private readonly IOnKeysEventsSubscribeService _subscribe;
 
         public MonitorLoop(
             ILogger<MonitorLoop> logger,
             ISettingConstants constant,
+            ICacheProviderAsync cache,
             IHostApplicationLifetime applicationLifetime,
             IOnKeysEventsSubscribeService subscribe)
         {
             _logger = logger;
+            _cache = cache;
             _constant = constant;
             _subscribe = subscribe;
             _cancellationToken = applicationLifetime.ApplicationStopping;
@@ -50,6 +53,7 @@ namespace FrontServerEmulation
             // тут можно проверить наличие минимум двух бэк-серверов
             // а можно перенести в цикл ожидания нажатия клавиши
 
+
             // имена ключей eventKeyStart (биржа труда) и eventKeyRun (кафе выдачи задач) фронт передаёт бэку
             // биржа труда - key event back processes servers readiness list - eventKeyBackReadiness
             // кафе выдачи задач - key event front server gives task package - eventKeyFrontGivesTask
@@ -70,7 +74,15 @@ namespace FrontServerEmulation
             // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
 
             EventKeyNames eventKeysSet = InitialiseEventKeyNames();
+            // тут необходимо очистить ключ EventKeyFrontGivesTask, может быть временно, для отладки
+            string eventKeyFrontGivesTask = eventKeysSet.EventKeyFrontGivesTask;
+            bool isExistEventKeyFrontGivesTask = await _cache.KeyExistsAsync(eventKeyFrontGivesTask);
+            if (isExistEventKeyFrontGivesTask)
+            {
+                bool isDeleteSuccess = await _cache.RemoveAsync(eventKeyFrontGivesTask);
+                _logger.LogInformation("FrontServerEmulation reported - isDeleteSuceess of the key {0} is {1}.", eventKeyFrontGivesTask, isDeleteSuccess);
 
+            }
 
             // новая версия, теперь это только эмулятор контроллера фронт-сервера
 
