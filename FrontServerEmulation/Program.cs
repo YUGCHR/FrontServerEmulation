@@ -5,32 +5,42 @@ using CachingFramework.Redis;
 using CachingFramework.Redis.Contracts.Providers;
 using StackExchange.Redis;
 using FrontServerEmulation.Services;
+using Microsoft.AspNetCore.Hosting;
+using System.IO;
+using Microsoft.Extensions.Configuration;
 
 namespace FrontServerEmulation
 {
     public class Program
     {
-        public static void Main(string[] args)
-        {
-            //CreateHostBuilder(args).Build().Run();
-
-            var host = CreateHostBuilder(args).Build();
-
-            var monitorLoop = host.Services.GetRequiredService<MonitorLoop>();
-            monitorLoop.StartMonitorLoop();
-
-            host.Run();
-        }
-
         public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureServices((hostContext, services) =>
+        Host.CreateDefaultBuilder(args)
+            .UseContentRoot(Directory.GetCurrentDirectory())
+            .ConfigureAppConfiguration((hostingContext, config) =>
+            {
+                var env = hostingContext.HostingEnvironment;
+
+                // find the shared folder in the parent folder
+                string[] paths = { env.ContentRootPath, "..", "..", "SharedSettings" };
+                var sharedFolder = Path.Combine(paths);
+
+                //load the SharedSettings first, so that appsettings.json overrwrites it
+                config
+                    .AddJsonFile(Path.Combine(sharedFolder, "sharedSettings.json"), optional: true)
+                    .AddJsonFile("appsettings.json", optional: true)
+                    .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true);
+
+                config.AddEnvironmentVariables();
+            })
+            .ConfigureLogging((ctx, log) => { /* elided for brevity */ })
+            .UseDefaultServiceProvider((ctx, opts) => { /* elided for brevity */ })
+            .ConfigureServices((hostContext, services) =>
                 {
                     try
                     {
                         //ConnectionMultiplexer muxer = ConnectionMultiplexer.Connect("redis");
                         ConnectionMultiplexer muxer = ConnectionMultiplexer.Connect("localhost");
-                        services.AddSingleton<ICacheProviderAsync>(new RedisContext(muxer).Cache);                        
+                        services.AddSingleton<ICacheProviderAsync>(new RedisContext(muxer).Cache);
                         services.AddSingleton<IKeyEventsProvider>(new RedisContext(muxer).KeyEvents);
                     }
                     catch (Exception ex)
@@ -49,6 +59,16 @@ namespace FrontServerEmulation
                     services.AddSingleton<IFrontServerEmulationService, FrontServerEmulationService>();
 
                 });
+
+        public static void Main(string[] args)
+        {
+            var host = CreateHostBuilder(args).Build();
+
+            var monitorLoop = host.Services.GetRequiredService<MonitorLoop>();
+            monitorLoop.StartMonitorLoop();
+
+            host.Run();
+        }
     }
 }
 
