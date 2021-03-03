@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CachingFramework.Redis.Contracts;
@@ -68,7 +65,6 @@ namespace FrontServerEmulation
             // generate random integers from 5 to 10
             Random rand = new Random();
             rand.Next(5, 11);
-
 
             // сделать два сообщения в консоли - подсказки, как запустить эмулятор
             // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            

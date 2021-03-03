@@ -1,12 +1,12 @@
 using System;
+using System.IO;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using CachingFramework.Redis;
 using CachingFramework.Redis.Contracts.Providers;
 using StackExchange.Redis;
 using FrontServerEmulation.Services;
-using Microsoft.AspNetCore.Hosting;
-using System.IO;
 using Microsoft.Extensions.Configuration;
 
 namespace FrontServerEmulation
@@ -14,11 +14,11 @@ namespace FrontServerEmulation
     public class Program
     {
         public static IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args)
+            Host.CreateDefaultBuilder(args)            
             .UseContentRoot(Directory.GetCurrentDirectory())
-            .ConfigureAppConfiguration((hostingContext, config) =>
+            .ConfigureAppConfiguration((hostContext, config) =>
             {
-                var env = hostingContext.HostingEnvironment;
+                var env = hostContext.HostingEnvironment;
 
                 // find the shared folder in the parent folder
                 string[] paths = { env.ContentRootPath, "..", "..", "SharedSettings" };

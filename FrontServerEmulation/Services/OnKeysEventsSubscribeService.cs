@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using CachingFramework.Redis.Contracts;
 using CachingFramework.Redis.Contracts.Providers;
@@ -14,7 +10,7 @@ namespace FrontServerEmulation.Services
     public interface IOnKeysEventsSubscribeService
     {
         public Task<string> FetchGuidFieldTaskRun(string eventKeyRun, string eventFieldRun, TimeSpan ttl);
-        public void SubscribeOnEventFrom(EventKeyNames eventKeysSet);
+        public void SubscribeOnEventFrom(EventKeyNames eventKeysSet);        
     }
 
     public class OnKeysEventsSubscribeService : IOnKeysEventsSubscribeService
@@ -67,6 +63,6 @@ namespace FrontServerEmulation.Services
 
             string eventKeyCommand = $"Key = {eventKey}, Command = {eventCmd}";
             _logger.LogInformation("You subscribed on event - {EventKey}.", eventKeyCommand);
-        }        
+        }
     }
 }
