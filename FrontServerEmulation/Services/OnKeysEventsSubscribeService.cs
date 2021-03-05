@@ -63,6 +63,7 @@ namespace FrontServerEmulation.Services
 
             string eventKeyCommand = $"Key = {eventKey}, Command = {eventCmd}";
             _logger.LogInformation("You subscribed on event - {EventKey}.", eventKeyCommand);
+            _logger.LogInformation("To start the front emulation please send from Redis console the following command - \n{_}{0} {1} count NN (NN - packages count).", "      ", eventCmd, eventKey);
         }
     }
 }

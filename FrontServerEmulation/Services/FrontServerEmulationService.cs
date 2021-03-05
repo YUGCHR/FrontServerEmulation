@@ -108,14 +108,14 @@ namespace FrontServerEmulation.Services
             {
                 (string guid, int cycleCount) = t;
                 // записываем пакет задач в ключ пакета задач
-                await _cache.SetHashedAsync(taskPackageGuid, guid, cycleCount, eventKeysSet.Ttl);
+                await _cache.SetHashedAsync(taskPackageGuid, guid, cycleCount, eventKeysSet.EventKeyFromTimeDays);
                 inPackageTaskCount++;
                 _logger.LogInformation("TaskPackage No. {0}, with Task No. {1} with {2} cycles was set.", taskPackageGuid, guid, cycleCount);
             }
 
             // только после того, как создан ключ с пакетом задач, можно положить этот ключ в подписной ключ eventKeyFrontGivesTask
             // записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в поле и в значение - ключ пакета задач
-            await _cache.SetHashedAsync(eventKeysSet.EventKeyFrontGivesTask, taskPackageGuid, taskPackageGuid, eventKeysSet.Ttl);
+            await _cache.SetHashedAsync(eventKeysSet.EventKeyFrontGivesTask, taskPackageGuid, taskPackageGuid, eventKeysSet.EventKeyFrontGivesTaskTimeDays);
             _logger.LogInformation(" --- Key EventKeyFrontGivesTask with TaskPackage No. {1} was created.", taskPackageGuid);
             // сервера подписаны на ключ eventKeyFrontGivesTask и пойдут забирать задачи, на этом тут всё
             return inPackageTaskCount;

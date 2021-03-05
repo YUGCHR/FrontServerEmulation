@@ -50,6 +50,9 @@ namespace FrontServerEmulation
                         throw;
                     }
 
+                    services.AddSingleton<GenerateThisBackServerGuid>();
+
+                    // убрать константы и создание класса констант в отдельный sln/container - со своим appsetting, который и станет общий для всех
                     services.AddSingleton<ISettingConstants, SettingConstants>();
                     //services.AddHostedService<QueuedHostedService>();
                     //services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
@@ -68,6 +71,28 @@ namespace FrontServerEmulation
             monitorLoop.StartMonitorLoop();
 
             host.Run();
+        }
+    }
+
+    // вставить генерацию уникального номера в сервис констант - уже нет, оставить здесь
+    // может и сервис генерации уникального номера сделать отдельным sln/container, к которому все будут обращаться
+    // скажем, этот сервис будет подписан на стандартный для всех ключ запрос
+    // по срабатыванию подписки на этот ключ, метод будет просто считать количество обращений - чтобы никого не пропустить
+    // потом - с задержкой, когда счётчик будет стоять больше определенного времени, он создаст стандартный ключ с полями - гуид
+    // и все запросившие гуид будут их разбирать таким же способом, как и пакеты задач
+
+    public class GenerateThisBackServerGuid
+    {
+        private readonly string _thisBackServerGuid;
+
+        public GenerateThisBackServerGuid()
+        {
+            _thisBackServerGuid = Guid.NewGuid().ToString();
+        }
+
+        public string ThisBackServerGuid()
+        {
+            return _thisBackServerGuid;
         }
     }
 }

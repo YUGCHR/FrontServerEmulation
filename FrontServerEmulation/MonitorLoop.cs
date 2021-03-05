@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using CachingFramework.Redis.Contracts;
 using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Hosting;
@@ -17,8 +18,10 @@ namespace FrontServerEmulation
         private readonly ICacheProviderAsync _cache;
         private readonly CancellationToken _cancellationToken;
         private readonly IOnKeysEventsSubscribeService _subscribe;
+        private readonly string _guid;
 
         public MonitorLoop(
+            GenerateThisBackServerGuid thisGuid,
             ILogger<MonitorLoop> logger,
             ISettingConstants constant,
             ICacheProviderAsync cache,
@@ -30,6 +33,7 @@ namespace FrontServerEmulation
             _constant = constant;
             _subscribe = subscribe;
             _cancellationToken = applicationLifetime.ApplicationStopping;
+            _guid = thisGuid.ThisBackServerGuid();
         }
 
         public void StartMonitorLoop()
@@ -42,19 +46,37 @@ namespace FrontServerEmulation
 
         public async Task Monitor()
         {
+            // на старте проверить наличие ключа с константами
+            // в сервисе констант при старте удалять ключ и создавать новый
+            // константы можно делить по полям, а можно общим классом
+            // а можно и то и другое
+            // если все константы классом, то получится надо везде держать модель - одинаковый код
             // на старте фронт сразу запускает два (взять из constant) бэка - чтобы были
-            int serverCount = 2;
-            // пока запустить руками, потом в контейнерах
-            _logger.LogInformation("Please, start {0} instances of BackgroundTasksQueue server", serverCount);
+            int serverCount = 1;
+            // пока запустить руками, потом в контейнерах - вроде как не получится
+
 
             // тут можно проверить наличие минимум двух бэк-серверов
             // а можно перенести в цикл ожидания нажатия клавиши
+            // в this эмуляторе подписаться на ключи серверов по префикс:* или по ключу регистрации серверов и ждать регистрации нужного количества
 
+            IDictionary<string, string> tasksList = await _cache.GetHashedAllAsync<string>(_constant.GetEventKeyBackReadiness);
+            int tasksListCount = tasksList.Count;
+            if (tasksListCount < serverCount)
+            {
+                _logger.LogInformation("Please, start {0} instances of BackgroundTasksQueue server", serverCount);
+            }
 
-            // имена ключей eventKeyStart (биржа труда) и eventKeyRun (кафе выдачи задач) фронт передаёт бэку
-            // биржа труда - key event back processes servers readiness list - eventKeyBackReadiness
-            // кафе выдачи задач - key event front server gives task package - eventKeyFrontGivesTask
-            // пока имена взять из констант
+            // при старте, если констант вдруг нет, можно подписаться на стандартный общий ключ получения констант
+            // когда константы создадутся, они оповестят по подписке, что константы уже есть и тогда по другому стандартному ключу их взять
+            // например, constants:fetch - забирать, constants:await - подписка на ожидание
+            // в контейнерах будет непросто разбираться, в каком порядке все должны стартовать, редис первым - уже достижение
+            // ещё регистрация сервера в ключе может быть, а сам сервер уже (давно) неживой
+            // поэтому в значение поля с номером сервера можно класть не тот же самый номер, а ключ для проверки живости сервера, на который тот будет подписан
+            // а лучше просто чистый гуид сервера - они к нему применят разные префиксы для подписки из общих констант
+            // скажем, сервер будет подписан на динг:гуид, а фронт, получив гуид сервера, подпишется на донг:гуид и сделает запись на динг
+            // после этого сервер, увидев запрос, запишет в ключ донг:гуид и фронт узнает, что сервер живой и общается
+            // после чего оба ключа надо сразу же удалить
 
             // добавить дополнительный ключ с количеством пакетов задач
             // в стартовом ключе в значении указывать задержку -
@@ -130,6 +152,9 @@ namespace FrontServerEmulation
         {
             return new EventKeyNames
             {
+                TaskDelayTimeInSeconds = _constant.GetTaskDelayTimeInSeconds, // время задержки в секундах для эмулятора счета задачи
+                BalanceOfTasksAndProcesses = _constant.GetBalanceOfTasksAndProcesses, // соотношение количества задач и процессов для их выполнения на back-processes-servers (количества задач разделить на это число и сделать столько процессов)
+                MaxProcessesCountOnServer = _constant.GetMaxProcessesCountOnServer, // максимальное количество процессов на back-processes-servers (минимальное - 1)
                 EventKeyFrom = _constant.GetEventKeyFrom, // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
                 EventFieldFrom = _constant.GetEventFieldFrom, // "count" - поле для подписки на команду запуска эмулятора сервера
                 EventCmd = KeyEvent.HashSet,
@@ -140,9 +165,18 @@ namespace FrontServerEmulation
                 PrefixPackage = _constant.GetPrefixPackage, // package:guid
                 PrefixTask = _constant.GetPrefixTask, // task:guid
                 PrefixBackServer = _constant.GetPrefixBackServer, // backserver:guid
+                BackServerGuid = _guid, // this server guid
+                BackServerPrefixGuid = $"{_constant.GetPrefixBackServer}:{_guid}", // backserver:(this server guid)
+                PrefixProcessAdd = _constant.GetPrefixProcessAdd, // process:add
+                PrefixProcessCancel = _constant.GetPrefixProcessCancel, // process:cancel
+                PrefixProcessCount = _constant.GetPrefixProcessCount, // process:count
                 EventFieldFront = _constant.GetEventFieldFront,
                 EventKeyBacksTasksProceed = _constant.GetEventKeyBacksTasksProceed, //  ключ выполняемых/выполненных задач                
-                Ttl = TimeSpan.FromDays(_constant.GetKeyFromTimeDays) // срок хранения ключа eventKeyFrom
+                EventKeyFromTimeDays = TimeSpan.FromDays(_constant.GetEventKeyFromTimeDays), // срок хранения ключа eventKeyFrom
+                EventKeyBackReadinessTimeDays = TimeSpan.FromDays(_constant.GetEventKeyBackReadinessTimeDays), // срок хранения 
+                EventKeyFrontGivesTaskTimeDays = TimeSpan.FromDays(_constant.GetEventKeyFrontGivesTaskTimeDays), // срок хранения ключа 
+                EventKeyBackServerMainTimeDays = TimeSpan.FromDays(_constant.GetEventKeyBackServerMainTimeDays), // срок хранения ключа 
+                EventKeyBackServerAuxiliaryTimeDays = TimeSpan.FromDays(_constant.GetEventKeyBackServerAuxiliaryTimeDays), // срок хранения ключа 
             };
         }
     }
