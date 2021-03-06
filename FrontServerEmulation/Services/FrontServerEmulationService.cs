@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Logging;
-using FrontServerEmulation.Models;
+using BackgroundTasksQueue.Library.Models;
 
 namespace FrontServerEmulation.Services
 {

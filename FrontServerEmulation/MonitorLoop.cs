@@ -7,7 +7,7 @@ using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using FrontServerEmulation.Services;
-using FrontServerEmulation.Models;
+using BackgroundTasksQueue.Library.Models;
 
 namespace FrontServerEmulation
 {
@@ -58,13 +58,19 @@ namespace FrontServerEmulation
 
             // тут можно проверить наличие минимум двух бэк-серверов
             // а можно перенести в цикл ожидания нажатия клавиши
-            // в this эмуляторе подписаться на ключи серверов по префикс:* или по ключу регистрации серверов и ждать регистрации нужного количества
+
+            // здесь можно подписаться на ключ регистрации серверов и при оповещении по подписке, обновлять лист серверов и проверять, что все живые
+            // ещё менять флаг разрешения задач
+            // это уже функции будущего диспетчера
 
             IDictionary<string, string> tasksList = await _cache.GetHashedAllAsync<string>(_constant.GetEventKeyBackReadiness);
             int tasksListCount = tasksList.Count;
             if (tasksListCount < serverCount)
             {
+                // если серверов меньше заданного минимума, сидеть здесь и ждать регистрации нужного количества
                 _logger.LogInformation("Please, start {0} instances of BackgroundTasksQueue server", serverCount);
+                // или если есть хотя бы один, то не ждать, а работать?
+                // ждать - значит поставить флаг разрешения размещения задач в запрещено, подписка сама оповестит, что произошли изменения
             }
 
             // при старте, если констант вдруг нет, можно подписаться на стандартный общий ключ получения констант
