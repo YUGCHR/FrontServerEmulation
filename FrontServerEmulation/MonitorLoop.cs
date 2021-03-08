@@ -8,13 +8,14 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using FrontServerEmulation.Services;
 using BackgroundTasksQueue.Library.Models;
+using BackgroundTasksQueue.Library.Services;
 
 namespace FrontServerEmulation
 {
     public class MonitorLoop
     {
         private readonly ILogger<MonitorLoop> _logger;
-        private readonly ISettingConstants _constant;
+        private readonly ISharedDataAccess _data;
         private readonly ICacheProviderAsync _cache;
         private readonly CancellationToken _cancellationToken;
         private readonly IOnKeysEventsSubscribeService _subscribe;
@@ -23,14 +24,14 @@ namespace FrontServerEmulation
         public MonitorLoop(
             GenerateThisBackServerGuid thisGuid,
             ILogger<MonitorLoop> logger,
-            ISettingConstants constant,
+            ISharedDataAccess data,
             ICacheProviderAsync cache,
             IHostApplicationLifetime applicationLifetime,
             IOnKeysEventsSubscribeService subscribe)
         {
             _logger = logger;
             _cache = cache;
-            _constant = constant;
+            _data = data;
             _subscribe = subscribe;
             _cancellationToken = applicationLifetime.ApplicationStopping;
             _guid = thisGuid.ThisBackServerGuid();
@@ -44,8 +45,11 @@ namespace FrontServerEmulation
             Task.Run(Monitor, _cancellationToken);
         }
 
-        public async Task Monitor()
+        public async Task Monitor() // _logger = 100
         {
+            EventKeyNames eventKeysSet = await _data.FetchAllConstants();
+            
+
             // на старте проверить наличие ключа с константами
             // в сервисе констант при старте удалять ключ и создавать новый
             // константы можно делить по полям, а можно общим классом
@@ -63,12 +67,12 @@ namespace FrontServerEmulation
             // ещё менять флаг разрешения задач
             // это уже функции будущего диспетчера
 
-            IDictionary<string, string> tasksList = await _cache.GetHashedAllAsync<string>(_constant.GetEventKeyBackReadiness);
+            IDictionary<string, string> tasksList = await _cache.GetHashedAllAsync<string>(eventKeysSet.EventKeyBackReadiness);
             int tasksListCount = tasksList.Count;
             if (tasksListCount < serverCount)
             {
                 // если серверов меньше заданного минимума, сидеть здесь и ждать регистрации нужного количества
-                _logger.LogInformation("Please, start {0} instances of BackgroundTasksQueue server", serverCount);
+                _logger.LogInformation(1001, "Please, start {0} instances of BackgroundTasksQueue server", serverCount);
                 // или если есть хотя бы один, то не ждать, а работать?
                 // ждать - значит поставить флаг разрешения размещения задач в запрещено, подписка сама оповестит, что произошли изменения
             }
@@ -91,21 +95,23 @@ namespace FrontServerEmulation
             // отрицательная - случайная задержка, но не более значения в сек
 
             // generate random integers from 5 to 10
-            Random rand = new Random();
+            Random rand = new();
             rand.Next(5, 11);
 
             // сделать два сообщения в консоли - подсказки, как запустить эмулятор
             // To start tasks batch enter from Redis console the command - hset subscribeOnFrom tasks:count 30 (where 30 is tasks count - from 10 to 50)            
 
-            EventKeyNames eventKeysSet = InitialiseEventKeyNames();
+            
             // тут необходимо очистить ключ EventKeyFrontGivesTask, может быть временно, для отладки
             string eventKeyFrontGivesTask = eventKeysSet.EventKeyFrontGivesTask;
+            _logger.LogInformation(1005, "Key eventKeyFrontGivesTask = {0} fetched from constants", eventKeyFrontGivesTask);
+
             // можно не проверять наличие ключа, а сразу пробовать удалить, там внутри есть своя проверка
             bool isExistEventKeyFrontGivesTask = await _cache.KeyExistsAsync(eventKeyFrontGivesTask);
             if (isExistEventKeyFrontGivesTask)
             {
                 bool isDeleteSuccess = await _cache.RemoveAsync(eventKeyFrontGivesTask);
-                _logger.LogInformation("FrontServerEmulation reported - isDeleteSuceess of the key {0} is {1}.", eventKeyFrontGivesTask, isDeleteSuccess);
+                _logger.LogInformation(1009, "FrontServerEmulation reported - isDeleteSuccess of the key {0} is {1}.", eventKeyFrontGivesTask, isDeleteSuccess);
 
             }
 
@@ -152,38 +158,6 @@ namespace FrontServerEmulation
         private bool IsCancellationNotYet()
         {
             return !_cancellationToken.IsCancellationRequested; // add special key from Redis?
-        }
-
-        private EventKeyNames InitialiseEventKeyNames()
-        {
-            return new EventKeyNames
-            {
-                TaskDelayTimeInSeconds = _constant.GetTaskDelayTimeInSeconds, // время задержки в секундах для эмулятора счета задачи
-                BalanceOfTasksAndProcesses = _constant.GetBalanceOfTasksAndProcesses, // соотношение количества задач и процессов для их выполнения на back-processes-servers (количества задач разделить на это число и сделать столько процессов)
-                MaxProcessesCountOnServer = _constant.GetMaxProcessesCountOnServer, // максимальное количество процессов на back-processes-servers (минимальное - 1)
-                EventKeyFrom = _constant.GetEventKeyFrom, // "subscribeOnFrom" - ключ для подписки на команду запуска эмулятора сервера
-                EventFieldFrom = _constant.GetEventFieldFrom, // "count" - поле для подписки на команду запуска эмулятора сервера
-                EventCmd = KeyEvent.HashSet,
-                EventKeyBackReadiness = _constant.GetEventKeyBackReadiness, // ключ регистрации серверов
-                EventFieldBack = _constant.GetEventFieldBack,
-                EventKeyFrontGivesTask = _constant.GetEventKeyFrontGivesTask, // кафе выдачи задач
-                PrefixRequest = _constant.GetPrefixRequest, // request:guid
-                PrefixPackage = _constant.GetPrefixPackage, // package:guid
-                PrefixTask = _constant.GetPrefixTask, // task:guid
-                PrefixBackServer = _constant.GetPrefixBackServer, // backserver:guid
-                BackServerGuid = _guid, // this server guid
-                BackServerPrefixGuid = $"{_constant.GetPrefixBackServer}:{_guid}", // backserver:(this server guid)
-                PrefixProcessAdd = _constant.GetPrefixProcessAdd, // process:add
-                PrefixProcessCancel = _constant.GetPrefixProcessCancel, // process:cancel
-                PrefixProcessCount = _constant.GetPrefixProcessCount, // process:count
-                EventFieldFront = _constant.GetEventFieldFront,
-                EventKeyBacksTasksProceed = _constant.GetEventKeyBacksTasksProceed, //  ключ выполняемых/выполненных задач                
-                EventKeyFromTimeDays = TimeSpan.FromDays(_constant.GetEventKeyFromTimeDays), // срок хранения ключа eventKeyFrom
-                EventKeyBackReadinessTimeDays = TimeSpan.FromDays(_constant.GetEventKeyBackReadinessTimeDays), // срок хранения 
-                EventKeyFrontGivesTaskTimeDays = TimeSpan.FromDays(_constant.GetEventKeyFrontGivesTaskTimeDays), // срок хранения ключа 
-                EventKeyBackServerMainTimeDays = TimeSpan.FromDays(_constant.GetEventKeyBackServerMainTimeDays), // срок хранения ключа 
-                EventKeyBackServerAuxiliaryTimeDays = TimeSpan.FromDays(_constant.GetEventKeyBackServerAuxiliaryTimeDays), // срок хранения ключа 
-            };
         }
     }
 }

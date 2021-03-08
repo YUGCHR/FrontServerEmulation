@@ -43,7 +43,7 @@ namespace FrontServerEmulation.Services
             return eventGuidFieldRun;
         }
 
-        public void SubscribeOnEventFrom(EventKeyNames eventKeysSet)            
+        public void SubscribeOnEventFrom(EventKeyNames eventKeysSet) // _logger = 201
         {
             // ждёт команды с консоли с количеством генерируемых пакетов            
             string eventKey = eventKeysSet.EventKeyFrom;
@@ -55,8 +55,8 @@ namespace FrontServerEmulation.Services
                 {
                     // по получению начинает цикл создания пакетов с задачами
                     _logger.LogInformation("Key {Key} with command {Cmd} was received.", eventKey, cmd);
-                    int tasksPackegesCount = await _front.FrontServerEmulationMain(eventKeysSet);
-                    _logger.LogInformation("Tasks Packeges created in count = {0}.", tasksPackegesCount);
+                    int tasksPackagesCount = await _front.FrontServerEmulationMain(eventKeysSet);
+                    _logger.LogInformation("Tasks Packages created in count = {0}.", tasksPackagesCount);
 
                 }
             });
