@@ -1,20 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using CachingFramework.Redis.Contracts;
 using CachingFramework.Redis.Contracts.Providers;
 using Microsoft.Extensions.Logging;
-using FrontServerEmulation.Models;
+using BackgroundTasksQueue.Library.Models;
 
 namespace FrontServerEmulation.Services
 {
     public interface IFrontServerEmulationService
     {
         public Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl);
-        public Task FrontServerEmulationMain(EventKeyNames eventKeysSet); // все ключи положить в константы
+        public Task<int> FrontServerEmulationMain(EventKeyNames eventKeysSet); // все ключи положить в константы
     }
 
     public class FrontServerEmulationService : IFrontServerEmulationService
@@ -28,108 +24,54 @@ namespace FrontServerEmulation.Services
             _cache = cache;
         }
 
-        public async Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl)
+        public async Task FrontServerEmulationCreateGuidField(string eventKeyRun, string eventFieldRun, TimeSpan ttl) // not used
         {
             string eventGuidFieldRun = Guid.NewGuid().ToString(); // 
 
-            await _cache.SetHashedAsync(eventKeyRun, eventFieldRun, eventGuidFieldRun, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
+            await _cache.SetHashedAsync<string>(eventKeyRun, eventFieldRun, eventGuidFieldRun, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
 
             _logger.LogInformation("Guid Field {0} for key {1} was created and set.", eventGuidFieldRun, eventKeyRun);
         }
 
-        public async Task FrontServerEmulationMain(EventKeyNames eventKeysSet)
+        public async Task<int> FrontServerEmulationMain(EventKeyNames eventKeysSet) // _logger = 300
         {
-            string eventKeyFrom = eventKeysSet.EventKeyFrom;
-            string eventFieldFrom = eventKeysSet.EventFieldFrom;
-            KeyEvent eventCmd = eventKeysSet.EventCmd;
-            string eventKeyBackReadiness = eventKeysSet.EventKeyBackReadiness;
-            string eventFieldBack = eventKeysSet.EventFieldBack;
-            string eventKeyFrontGivesTask = eventKeysSet.EventKeyFrontGivesTask;
-            string eventFieldFront = eventKeysSet.EventFieldFront;
-            TimeSpan ttl = eventKeysSet.Ttl;
-
-            // после получения задачи фронт опрашивает (не подписка) ключ eventKeyBackReadiness и получает список полей - это готовые к работе бэк-сервера
-            // дальше фронт выбирает первое поле или случайнее (так надёжнее?) и удаляет его - забирает заявку
-            string capturedBackServerGuid = await CaptureBackServerGuid(eventKeyBackReadiness);
-
-
-            // затем фронт создаёт в ключе кафе (eventKeyFrontGivesTask) поле с захваченным guid бэка, а в значение кладёт имя ключа (тоже guid) пакета задач
-            // или кафе не создавать, а сразу идти на ключ (guid бэк-сервера) для получения задачи
-            // кафе позволяет стороннему процессу узнать количество серверов за работой - для чего ещё может понадобиться кафе?
-
-
-            // создаём имя ключа, содержащего пакет задач 
-            string taskPackageGuid = Guid.NewGuid().ToString();
             // получаем условия задач по стартовому ключу 
-            int tasksCount = await FrontServerFetchConditions(eventKeyFrom, eventFieldFrom);
-            // создаём пакет задач (в реальности, опять же, пакет задач положил контроллер)
-            Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount);
-            // в методе записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в сам ключ - сами задачи
-            // можно положить новые переменные тоже в eventKeysSet
-            int inPackageTaskCount = await FrontServerSetTasks(taskPackage, eventKeysSet, taskPackageGuid, capturedBackServerGuid);
-            // можно возвращать количество созданных задач и проверять, что не нуль - но это чтобы хоть что-то проверять (или проверять наличие созданных ключей)
-            // на создание ключа с пакетом задач уйдёт заметное время, поэтому кафе оправдано - можно будет положить этот ключ в кафе на имя сервера после его создания
-            if (inPackageTaskCount > 0)
+            int tasksPackagesCount = await FrontServerFetchConditions(eventKeysSet.EventKeyFrom, eventKeysSet.EventFieldFrom);
+
+            // начинаем цикл создания и размещения пакетов задач
+            _logger.LogInformation(30010, " - Creation cycle of key EventKeyFrontGivesTask fields started with {1} steps.", tasksPackagesCount);
+
+            for (int i = 0; i < tasksPackagesCount; i++)
             {
-                //then all rirght
-            }
-
-            // бэк подписан на ключ кафе (или на ключ свой guid, если без кафе) и получив сообщение о событии, проверяет своё поле (или сразу берёт задачу)
-            // начав работу, бэк кладёт в ключ сообщение о ходе выполнения пакета и/или отдельной задачи (типовой класс - номер цикла, всего цикла, время цикла, всего время и так далее)
-            // окончив задачу, бэк должен вернуть поле со своим guid на биржу
-            // но сначала проверить сколько там есть свободных серверов - если больше х + какой-то запас, тогда просто раствориться
-            // ключ об отчёте выполнения останется на заданное время и потом тоже исчезнет
-
-
-            //await _cache.SetHashedAsync(eventKeyRun, eventFieldRun, packageGuid, ttl); // создаём ключ ("task:run"), на который подписана очередь и в значении передаём имя ключа, содержащего пакет задач
-
-            //_logger.LogInformation("Key {0}, field {1} with {2} KeyName was set.", eventKeyRun, eventFieldRun, packageGuid);
-        }
-
-        private async Task<string> CaptureBackServerGuid(string eventKeyBackReadiness)
-        {
-            // secede in method            
-            // проверить, что ключ вообще существует, это автоматически означает, что в нём есть хоть одно поле - есть свободный сервер
-            IDictionary<string, string> taskPackage;
-            string capturedBackServerGuid = "empty";
-            bool isExistEventKeyBackReadiness = await _cache.KeyExistsAsync(eventKeyBackReadiness);
-            if (isExistEventKeyBackReadiness)
-            {
-                // после получения задачи фронт опрашивает ключ eventKeyBackReadiness и получает список полей
-                taskPackage = await _cache.GetHashedAllAsync<string>(eventKeyBackReadiness);
-
-                // дальше фронт выбирает первое поле или случайнее (так надёжнее?) и удаляет его - забирает заявку
-
-                // если удаление получилось, значит, бэк-сервер получен и можно ставить ему задачу
-                // если удаление не прошло, фронт (в цикле) опять опрашивает ключ
-                // если полей в ключе нет, ключ исчезнет - надо что-то предусмотреть
-                // например, не брать задачу, если в списке только один сервер/поле - подождать X секунд и ещё раз опросить ключ
-                // после удачного захвата сервера надо дать команду на запуск ещё одного бэка - восстановить свободное количество
-
-                // ----------------- вы находитесь здесь
-
-                foreach (var t in taskPackage)
+                // guid - главный номер задания, используемый в дальнейшем для доступа к результатам
+                string taskPackageGuid = Guid.NewGuid().ToString();
+                int tasksCount = Math.Abs(taskPackageGuid.GetHashCode()) % 10; // просто (псевдо)случайное число
+                if (tasksCount < 3)
                 {
-                    var (backServerGuid, unusedValue) = t; // пока пробуем первое поле
-                    capturedBackServerGuid = backServerGuid;
-                    // пробуем удалить поле ключа - захватить свободный сервер
-                    bool isDeleteSuccess = await _cache.RemoveHashedAsync(eventKeyBackReadiness, backServerGuid);
-                    _logger.LogInformation("Background server No: {0} captured successfully = {1}.", backServerGuid, isDeleteSuccess);
-                    if (isDeleteSuccess)
-                    {
-                        return capturedBackServerGuid;
-                    }
+                    tasksCount += 3;
                 }
-            }
+                // создаём пакет задач (в реальности, опять же, пакет задач положил отдельный контроллер)
+                Dictionary<string, int> taskPackage = FrontServerCreateTasks(tasksCount, eventKeysSet);
 
-            return default;
+                // при создании пакета сначала создаётся пакет задач в ключе, а потом этот номер создаётся в виде поля в подписном ключе
+
+                // создаем ключ taskPackageGuid и кладем в него пакет 
+                // записываем ключ taskPackageGuid пакета задач в поле ключа eventKeyFrontGivesTask и в значение ключа - тоже taskPackageGuid
+                // дополняем taskPackageGuid префиксом PrefixPackage
+                string taskPackagePrefixGuid = $"{eventKeysSet.PrefixPackage}:{taskPackageGuid}";
+                int inPackageTaskCount = await FrontServerSetTasks(taskPackage, eventKeysSet, taskPackagePrefixGuid);
+                // можно возвращать количество созданных задач и проверять, что не нуль - но это чтобы хоть что-то проверять (или проверять наличие созданных ключей)
+                // на создание ключа с пакетом задач уйдёт заметное время, поэтому промежуточный ключ оправдан (наверное)
+            }
+            return tasksPackagesCount;
         }
 
         private async Task<int> FrontServerFetchConditions(string eventKeyFrom, string eventFieldFrom)
         {
-            int tasksCount = await _cache.GetHashedAsync<int>(eventKeyFrom, eventFieldFrom); //получить число задач (по этому ключу метод вызвали)
+            //получить число пакетов задач (по этому ключу метод вызвали)
+            int tasksCount = await _cache.GetHashedAsync<int>(eventKeyFrom, eventFieldFrom);
 
-            _logger.LogInformation("TaskCount = {TasksCount} from key {Key} was fetched.", tasksCount, eventKeyFrom);
+            _logger.LogInformation(30020, "TaskCount = {TasksCount} from key {Key} was fetched.", tasksCount, eventKeyFrom);
 
             if (tasksCount < 3) tasksCount = 3;
             if (tasksCount > 50) tasksCount = 50;
@@ -137,26 +79,7 @@ namespace FrontServerEmulation.Services
             return tasksCount;
         }
 
-        private async Task<int> FrontServerSetTasks(Dictionary<string, int> taskPackage, EventKeyNames eventKeysSet, string taskPackageGuid, string capturedBackServerGuid)
-        {
-            int inPackageTaskCount = 0;
-            foreach (KeyValuePair<string, int> t in taskPackage)
-            {
-                (string guid, int cycleCount) = t;
-                // записываем пакет задач в ключ пакета задач
-                await _cache.SetHashedAsync(taskPackageGuid, guid, cycleCount, eventKeysSet.Ttl);
-                inPackageTaskCount++;
-                _logger.LogInformation("Key {0}, field {1} with {2} cycles was set.", taskPackageGuid, guid, cycleCount);
-            }
-
-            // только после того, как создан ключ с пакетом задач, можно положить этот ключ в поле имени сервера
-            // записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в поле - guid захваченного сервера
-            await _cache.SetHashedAsync(eventKeysSet.EventKeyFrontGivesTask, capturedBackServerGuid, taskPackageGuid, eventKeysSet.Ttl);
-            // сервер подписан на ключ кафе и пойдёт забирать задачи, на этом тут всё
-            return inPackageTaskCount;
-        }
-
-        private Dictionary<string, int> FrontServerCreateTasks(int tasksCount)
+        private Dictionary<string, int> FrontServerCreateTasks(int tasksCount, EventKeyNames eventKeysSet)
         {
             Dictionary<string, int> taskPackage = new Dictionary<string, int>();
 
@@ -170,10 +93,39 @@ namespace FrontServerEmulation.Services
                     cycleCount += 3;
                 }
 
-                taskPackage.Add(guid, cycleCount);
-                _logger.LogInformation("Task {I} from {TasksCount} with ID {Guid} and {CycleCount} cycles was added to taskPackage key.", i, tasksCount, guid, cycleCount);
+                // дополняем taskPackageGuid префиксом PrefixPackage
+                string taskPackagePrefixGuid = $"{eventKeysSet.PrefixTask}:{guid}";
+                taskPackage.Add(taskPackagePrefixGuid, cycleCount);
+                _logger.LogInformation(30030, "Task {I} from {TasksCount} with ID {Guid} and {CycleCount} cycles was added to Dictionary.", i, tasksCount, taskPackagePrefixGuid, cycleCount);
             }
             return taskPackage;
+        }
+
+        private async Task<int> FrontServerSetTasks(Dictionary<string, int> taskPackage, EventKeyNames eventKeysSet, string taskPackageGuid)
+        {
+            int inPackageTaskCount = 0;
+            foreach (KeyValuePair<string, int> t in taskPackage)
+            {
+                (string guid, int cycleCount) = t;
+                // записываем пакет задач в ключ пакета задач
+                await _cache.SetHashedAsync(taskPackageGuid, guid, cycleCount, TimeSpan.FromDays(eventKeysSet.EventKeyFromTimeDays));
+                inPackageTaskCount++;
+                _logger.LogInformation(30050, "TaskPackage No. {0}, with Task No. {1} with {2} cycles was set.", taskPackageGuid, guid, cycleCount);
+            }
+
+            // только после того, как создан ключ с пакетом задач, можно положить этот ключ в подписной ключ eventKeyFrontGivesTask
+            // записываем ключ пакета задач в ключ eventKeyFrontGivesTask, а в поле и в значение - ключ пакета задач
+            string eventKeyFrontGivesTask = eventKeysSet.EventKeyFrontGivesTask;
+
+            await _cache.SetHashedAsync(eventKeysSet.EventKeyFrontGivesTask, taskPackageGuid, taskPackageGuid, TimeSpan.FromDays(eventKeysSet.EventKeyFrontGivesTaskTimeDays));
+            _logger.LogInformation(30070, " --- Key EventKeyFrontGivesTask = {0} with TaskPackage No. {1} was created.", eventKeysSet.EventKeyFrontGivesTask, taskPackageGuid);
+            _logger.LogInformation(30080, " --- Key EventKeyFrontGivesTask with lifetime {0} was created.", eventKeysSet.EventKeyFrontGivesTaskTimeDays);
+            
+            bool isExistEventKeyFrontGivesTask = await _cache.KeyExistsAsync(eventKeyFrontGivesTask);
+            _logger.LogInformation(30090, " Check the Key EventKeyFrontGivesTask - isExist = {0}.", isExistEventKeyFrontGivesTask);
+
+            // сервера подписаны на ключ eventKeyFrontGivesTask и пойдут забирать задачи, на этом тут всё
+            return inPackageTaskCount;
         }
     }
 }
